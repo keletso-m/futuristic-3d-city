@@ -1,23 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>3D City</title>
-  <style>body {margin:0;overflow:hidden;}</style>
+  <meta charset="UTF-8" />
+  <title>Futuristic 3D City – Part 1</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #info {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      font-family: sans-serif;
+      font-size: 13px;
+    }
+  </style>
+
+  <!-- import-map so we can use bare imports -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/controls/OrbitControls.js":
+        "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js"
+    }
+  }
+  </script>
 </head>
 <body>
-  <script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/examples/jsm/controls/OrbitControls.js":
-      "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js"
-  }
-}
-</script>
-<script type="module" src="./main.js"></script>
-
+  <div id="info">
+    C = start/stop cars • D = toggle drones 1-2 • F = toggle drones 3-4<br>
+    1 = side view • 2 = top view • OrbitControls: drag/zoom/pan
+  </div>
   <script type="module" src="./main.js"></script>
-  
 </body>
 </html>

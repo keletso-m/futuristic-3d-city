@@ -1,153 +1,187 @@
-// main.js
-import * as THREE              from 'three';
-import { OrbitControls }      from 'three/examples/jsm/controls/OrbitControls.js';
+import * as THREE           from 'three';
+import { OrbitControls }   from 'three/examples/jsm/controls/OrbitControls.js';
 
-// ———————————————————————————————————————————
-// Scene, Camera, Renderer
-// ———————————————————————————————————————————
-const scene    = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+let scene, camera, renderer, controls;
+let cars = [], drones = [];
+let carsMoving = true, dronesRotating01 = true, dronesRotating23 = true;
 
-const camera   = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(30, 20, 30);
+init();
+animate();
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;                     // ← shadows on
-renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
+function init() {
+  // Scene & Camera
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1e1e2e);
 
-// ———————————————————————————————————————————
-// Controls
-// ———————————————————————————————————————————
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping    = true;
-controls.dampingFactor    = 0.05;
-controls.maxPolarAngle    = Math.PI / 2;
-
-// ———————————————————————————————————————————
-// Lights & Shadows
-// ———————————————————————————————————————————
-// Soft fill light
-const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-hemi.position.set(0, 200, 0);
-scene.add(hemi);
-
-// Sunlight with shadows
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(50, 100, 50);
-sun.castShadow = true;
-sun.shadow.camera.top    = 50;
-sun.shadow.camera.bottom = -50;
-sun.shadow.camera.left   = -50;
-sun.shadow.camera.right  = 50;
-sun.shadow.mapSize.set(1024, 1024);
-scene.add(sun);
-
-// ———————————————————————————————————————————
-// Ground
-// ———————————————————————————————————————————
-const groundGeo = new THREE.PlaneGeometry(200, 200);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-const ground    = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x    = -Math.PI / 2;
-ground.receiveShadow = true;                          // ← ground gets shadows
-scene.add(ground);
-
-// ———————————————————————————————————————————
-// Buildings
-// ———————————————————————————————————————————
-const buildingGeo = new THREE.BoxGeometry(2, 1, 2);
-const buildingMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc });
-
-for (let i = 0; i < 12; i++) {
-  const height   = Math.random() * 15 + 5;
-  const building = new THREE.Mesh(
-    buildingGeo.clone(),
-    buildingMat.clone()
+  camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
   );
+  camera.position.set(40, 25, 40);
 
-  building.scale.y  = height;
-  building.position.set(
-    (Math.random() - 0.5) * 100,
-    height / 2,
-    (Math.random() - 0.5) * 100
-  );
-  building.material.color.setHex(Math.random() * 0xffffff);
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
 
-  building.castShadow    = true;   // ← buildings cast shadows
-  building.receiveShadow = false;
-  scene.add(building);
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0x404050, 0.6);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(50, 120, 50);
+  sun.castShadow = true;
+
+  // ← Expand shadow camera to cover entire city area
+  const d = 200;
+  sun.shadow.camera.left   = -d;
+  sun.shadow.camera.right  =  d;
+  sun.shadow.camera.top    =  d;
+  sun.shadow.camera.bottom = -d;
+  sun.shadow.camera.near   = 1;
+  sun.shadow.camera.far    = 500;
+  sun.shadow.mapSize.set(2048, 2048);
+
+  scene.add(sun);
+
+  // Ground
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2d3e });
+  const groundGeo = new THREE.PlaneGeometry(400, 400);
+  const ground    = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x    = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Buildings
+  createBuildings(10);
+
+  // Cars & Drones
+  spawnCars(4);
+  spawnDrones(4);
+
+  // Event Listeners
+  window.addEventListener('resize', onResize);
+  window.addEventListener('keydown', onKey);
 }
 
-// ———————————————————————————————————————————
-// Cars Placeholders
-// ———————————————————————————————————————————
-const carGeo = new THREE.BoxGeometry(1, 0.5, 2);
-let cars = [];
+function createBuildings(count) {
+  const geos = [
+    new THREE.BoxGeometry(2, 2, 2),
+    new THREE.CylinderGeometry(1.2, 1.2, 2, 16),
+    new THREE.ConeGeometry(1.2, 2, 16),
+    new THREE.SphereGeometry(1.2, 12, 12)
+  ];
 
-for (let i = 0; i < 4; i++) {
-  const car = new THREE.Mesh(carGeo, new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-  car.position.set(i * 3 - 6, 0.25, -20);
-  car.castShadow = true;           // ← cars cast shadows
-  scene.add(car);
-  cars.push(car);
+  for (let i = 0; i < count; i++) {
+    const geo = geos[i % geos.length].clone();
+    const h   = THREE.MathUtils.randFloat(8, 40);
+    geo.scale(1, h, 1);
+
+    const hue  = Math.random() * 0.2 + 0.6;
+    const mat  = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(hue, 0.5, 0.5)
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.position.set(
+      (i % 5 - 2) * 50 + THREE.MathUtils.randFloat(-5, 5),
+      h / 2,
+      (Math.floor(i / 5) - 1) * 60 + THREE.MathUtils.randFloat(-5, 5)
+    );
+    scene.add(mesh);
+  }
 }
 
-// ———————————————————————————————————————————
-// Drones Placeholders
-// ———————————————————————————————————————————
-const droneGeo = new THREE.SphereGeometry(0.5, 16, 16);
-let drones = [];
-
-for (let i = 0; i < 4; i++) {
-  const drone = new THREE.Mesh(droneGeo, new THREE.MeshStandardMaterial({ color: 0x00ff00 }));
-  drone.position.set(i * 4 - 8, 8, -5);
-  drone.castShadow = true;         // ← drones cast shadows
-  scene.add(drone);
-  drones.push(drone);
+function spawnCars(n) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0xff8c42 });
+  for (let i = 0; i < n; i++) {
+    const car = new THREE.Mesh(
+      new THREE.BoxGeometry(4, 1.5, 2),
+      mat.clone()
+    );
+    car.castShadow = true;
+    car.userData.angle = (i / n) * Math.PI * 2;
+    cars.push(car);
+    scene.add(car);
+  }
 }
 
-// ———————————————————————————————————————————
-// Animation Logic
-// ———————————————————————————————————————————
-let carsMoving   = true;
-let dronesRotating = true;
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'c') carsMoving    = !carsMoving;
-  if (e.key === 'd') dronesRotating = !dronesRotating;
-});
+function spawnDrones(n) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x72d6c9 });
+  for (let i = 0; i < n; i++) {
+    const d = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 16, 16),
+      mat.clone()
+    );
+    d.castShadow = true;
+    const x = (i % 2 ? 60 : -60);
+    const z = (i < 2 ? -80 : 80);
+    d.position.set(x, 15 + (i % 2) * 3, z);
+    drones.push(d);
+    scene.add(d);
+  }
+}
 
 function animate() {
   requestAnimationFrame(animate);
 
+  // Cars on circular path
   if (carsMoving) {
     cars.forEach(car => {
-      car.position.x += 0.05;
-      if (car.position.x > 20) car.position.x = -20;
+      car.userData.angle += 0.005;
+      const r = 80;
+      car.position.set(
+        Math.cos(car.userData.angle) * r,
+        0.75,
+        Math.sin(car.userData.angle) * r
+      );
+      car.rotation.y = -car.userData.angle + Math.PI / 2;
     });
   }
 
-  if (dronesRotating) {
-    drones.forEach(drone => {
-      drone.rotation.y += 0.05;
-    });
-  }
+  // Drones rotating in place
+  drones.forEach((d, i) => {
+    const flag = i < 2 ? dronesRotating01 : dronesRotating23;
+    if (flag) d.rotation.y += 0.03;
+  });
 
   controls.update();
   renderer.render(scene, camera);
 }
 
-window.addEventListener('resize', () => {
+function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
 
-animate();
+function onKey(e) {
+  const k = e.key.toLowerCase();
+  if (k === 'c') carsMoving       = !carsMoving;
+  if (k === 'd') dronesRotating01 = !dronesRotating01;
+  if (k === 'f') dronesRotating23 = !dronesRotating23;
+  if (k === '1') setSideView();
+  if (k === '2') setTopView();
+}
+
+function setSideView() {
+  camera.position.set(120, 40, 0);
+  controls.target.set(0, 20, 0);
+  controls.update();
+}
+
+function setTopView() {
+  camera.position.set(0, 200, 0.1);
+  camera.up.set(0, 0, -1);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
