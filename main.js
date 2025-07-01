@@ -40,8 +40,6 @@ function init() {
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.position.set(50, 120, 50);
   sun.castShadow = true;
-
-  // ← Expand shadow camera to cover entire city area
   const d = 200;
   sun.shadow.camera.left   = -d;
   sun.shadow.camera.right  =  d;
@@ -50,7 +48,6 @@ function init() {
   sun.shadow.camera.near   = 1;
   sun.shadow.camera.far    = 500;
   sun.shadow.mapSize.set(2048, 2048);
-
   scene.add(sun);
 
   // Ground
@@ -61,7 +58,7 @@ function init() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Buildings
+  // Buildings (10 + 4 extra)
   createBuildings(10);
 
   // Cars & Drones
@@ -74,27 +71,34 @@ function init() {
 }
 
 function createBuildings(count) {
+  // add a few more towers
+  const total = count + 4;
+
+  // Box, Pyramid (4-sided cone), Spire, Sphere
   const geos = [
     new THREE.BoxGeometry(2, 2, 2),
-    new THREE.CylinderGeometry(1.2, 1.2, 2, 16),
+    new THREE.ConeGeometry(1.5, 2, 4),
     new THREE.ConeGeometry(1.2, 2, 16),
     new THREE.SphereGeometry(1.2, 12, 12)
   ];
 
-  for (let i = 0; i < count; i++) {
-    const geo = geos[i % geos.length].clone();
-    const h   = THREE.MathUtils.randFloat(8, 40);
-    geo.scale(1, h, 1);
+  for (let i = 0; i < total; i++) {
+    const baseGeo = geos[i % geos.length].clone();
+
+    // random height and wider base
+    const height = THREE.MathUtils.randFloat(8, 40);
+    const width  = THREE.MathUtils.randFloat(1.5, 3);
+    baseGeo.scale(width, height, width);
 
     const hue  = Math.random() * 0.2 + 0.6;
     const mat  = new THREE.MeshStandardMaterial({
       color: new THREE.Color().setHSL(hue, 0.5, 0.5)
     });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(baseGeo, mat);
     mesh.castShadow = true;
     mesh.position.set(
       (i % 5 - 2) * 50 + THREE.MathUtils.randFloat(-5, 5),
-      h / 2,
+      height / 2,
       (Math.floor(i / 5) - 1) * 60 + THREE.MathUtils.randFloat(-5, 5)
     );
     scene.add(mesh);
@@ -118,16 +122,22 @@ function spawnCars(n) {
 function spawnDrones(n) {
   const mat = new THREE.MeshStandardMaterial({ color: 0x72d6c9 });
   for (let i = 0; i < n; i++) {
-    const d = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 16, 16),
+    // box-shaped drone
+    const drone = new THREE.Mesh(
+      new THREE.BoxGeometry(3, 0.5, 3),
       mat.clone()
     );
-    d.castShadow = true;
+    drone.castShadow = true;
+
+    // random spin speed for each drone
+    drone.userData.spinSpeed = THREE.MathUtils.randFloat(0.04, 0.08);
+
     const x = (i % 2 ? 60 : -60);
     const z = (i < 2 ? -80 : 80);
-    d.position.set(x, 15 + (i % 2) * 3, z);
-    drones.push(d);
-    scene.add(d);
+    drone.position.set(x, 15 + (i % 2) * 3, z);
+
+    drones.push(drone);
+    scene.add(drone);
   }
 }
 
@@ -151,7 +161,9 @@ function animate() {
   // Drones rotating in place
   drones.forEach((d, i) => {
     const flag = i < 2 ? dronesRotating01 : dronesRotating23;
-    if (flag) d.rotation.y += 0.03;
+    if (flag) {
+      d.rotation.y += d.userData.spinSpeed;
+    }
   });
 
   controls.update();
